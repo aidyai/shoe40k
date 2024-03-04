@@ -59,34 +59,68 @@ def parseNet(cfg):
     if cfg.train_type=='resnet50':
         model=models.__dict__[cfg.train_type]()
         model.load_state_dict(torch.load('../preTrain/resnet50-19c8e357.pth'))
+
+        # model.load_state_dict()
     else:
-        model = ViT('B_16_imagenet1k')
-        model.load_state_dict(torch.load('../preTrain/B_16_imagenet1k.pth'))
-    
+        if cfg.vit == "base":
+            model = timm.create_model("vit_base_patch16_224", pretrained=True)
+        elif cfg.vit == "base_dino":
+            model = timm.create_model(weightInfo["base_dino"], pretrained=True)
+        elif cfg.vit == "base_sam":
+            model = timm.create_model(weightInfo["base_sam"], pretrained=True)
+        elif cfg.vit == "base_mill":
+            model = timm.create_model(weightInfo["base_mill"], pretrained=True)
+        elif cfg.vit == "base_beit":
+            model = timm.create_model(weightInfo["base_beit"], pretrained=True)
+        elif cfg.vit == "base_clip":
+            model = timm.create_model(weightInfo["base_clip"], pretrained=True)
+        elif cfg.vit == "base_deit":
+            model = timm.create_model(weightInfo["base_deit"], pretrained=True)
+        elif cfg.vit == "large_clip":
+            model = timm.create_model(weightInfo["large_clip"], pretrained=True)
+        elif cfg.vit == "large_beit":
+            model = timm.create_model(weightInfo["large_beit"], pretrained=True)
+        elif cfg.vit == "huge_clip":
+            model = timm.create_model(weightInfo["huge_clip"], pretrained=True)
+        elif cfg.vit == "giant_eva":
+            model = timm.create_model(weightInfo["giant_eva"], pretrained=True)
+        elif cfg.vit == "giant_clip":
+            model = timm.create_model(weightInfo["giant_clip"], pretrained=True)
+        elif cfg.vit == "giga_clip":
+            model = timm.create_model(weightInfo["giga_clip"], pretrained=True)
+        else:
+            print("Wrong training type")
+            exit()
+
     if cfg.train_type == "lora":
-        lora_model = LoRA_ViT(model, r=cfg.rank, num_classes=cfg.num_classes)
+        lora_model = LoRA_ViT_timm(model, r=cfg.rank, num_classes=cfg.num_classes)
         num_params = sum(p.numel() for p in lora_model.parameters() if p.requires_grad)
-        logging.info(f"trainable parameters: {num_params/2**20:.1f}M")
+        print(f"trainable parameters: {num_params/2**20:.3f}M")
         net = lora_model.to(device)
+    elif cfg.train_type == "adapter":
+        adapter_model = Adapter_ViT(model, num_classes=cfg.num_classes)
+        num_params = sum(p.numel() for p in adapter_model.parameters() if p.requires_grad)
+        print(f"trainable parameters: {num_params/2**20:.3f}M")
+        net = adapter_model.to(device)
     elif cfg.train_type == "full":
-        model.fc = nn.Linear(768, cfg.num_classes)
+        model.reset_classifier(cfg.num_classes)
         num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        logging.info(f"trainable parameters: {num_params/2**20:.1f}M")
+        print(f"trainable parameters: {num_params/2**20:.3f}M")
         net = model.to(device)
     elif cfg.train_type == "linear":
-        model.fc = nn.Linear(768, cfg.num_classes)
+        model.reset_classifier(cfg.num_classes)
         for param in model.parameters():
             param.requires_grad = False
-        for param in model.fc.parameters():
+        for param in model.head.parameters():
             param.requires_grad = True
-        num_params = sum(p.numel() for p in model.fc.parameters())
-        logging.info(f"trainable parameters: {num_params/2**20:.3f}M")
+        num_params = sum(p.numel() for p in model.head.parameters())
+        print(f"trainable parameters: {num_params/2**20:.3f}M")
         net = model.to(device)
     elif cfg.train_type=='resnet50':
         infeature = model.fc.in_features
         model.fc = nn.Linear(infeature, cfg.num_classes)
         num_params = sum(p.numel() for p in model.fc.parameters())
-        logging.info(f"trainable parameters: {num_params/2**20:.3f}M")
+        print(f"trainable parameters: {num_params/2**20:.3f}M")
         net = model.to(device)
     else:
         print("Wrong training type")
