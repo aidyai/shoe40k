@@ -95,3 +95,27 @@ class ShoeDataset(Dataset):
         images = torch.stack(images, dim=0)
         labels = torch.as_tensor(labels)
         return images, labels
+
+
+
+def get_dataloaders(cfg, processor):
+    
+    train_dataset = Ego4dDataset(
+                        processor, 
+                        annotations_file=cfg["train_data_file"], 
+                        num_pos_queries=cfg["num_pos_queries"], 
+                        num_neg_queries=cfg["num_neg_queries"],
+                        is_train=True
+                    )
+    test_dataset = Ego4dDataset(
+                        processor,
+                        annotations_file=cfg["train_data_file"],
+                        num_pos_queries=cfg["num_pos_queries"], 
+                        num_neg_queries=cfg["num_neg_queries"],
+                        is_train=False
+                    )
+    
+    train_dataloader = DataLoader(train_dataset, batch_size=cfg["train_batch_size"], shuffle=True, num_workers=1)
+    test_dataloader = DataLoader(test_dataset, batch_size=cfg["train_batch_size"], shuffle=False, num_workers=1)
+    
+    return train_dataloader, test_dataloader
