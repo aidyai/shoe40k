@@ -23,8 +23,8 @@ training_args=TrainingArguments(
 trainer=Trainer(
     peft_model,
     training_args,
-    train_dataset=train_ds,
-    eval_dataset=val_ds,
+    train_dataset=train_dataset,         # training dataset
+    eval_dataset=val_dataset,             # evaluation dataset
     tokenizer=image_processor,
     compute_metrics=compute_metrics,
     data_collator=collate_fn,
