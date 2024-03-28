@@ -1,7 +1,7 @@
 
 import wandb
 import torch
-from pytorch_lightning import pl
+import pytorch_lightning as pl
 
 
 
