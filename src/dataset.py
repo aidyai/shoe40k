@@ -1,75 +1,71 @@
 import os
-import json
+import torch
+
 from PIL import Image
 import pandas as pd
-from sklearn import model_selection, metrics
-import torch
-#from torch.utils.data import Dataset 
+from torch.nn.modules import transformer
+from torchvision import transforms
+from torchvision import transforms as T
+from torchvision.datasets import Dataset
+from torch.utils.data import DataLoader
 
-#from utils import CFG, FOLD_CFG
-
-from torch.utils.data import Dataset
-from sklearn.model_selection import train_test_split  #, KFold
-
-
-from libraries import *
-
-
-# Load configuration file
-# Load the YAML file
-with open('/notebooks/algorithm/config.yaml') as file:
-    config = yaml.load(file, Loader=yaml.FullLoader)
-
-    test_size = config['config']['test_size']
-
-
-### READ IN CSV FILE ### DEFINE DIRECTORIES
-##########-----------##################
-df = pd.read_csv("/notebooks/dataset/SHOE_NET.csv")
-###########______________###############
-df['Label'] = df['Label'].apply(lambda x: x[0:4]).astype('category').cat.codes
-########
-DF = df
-### SPLIT FUNCTION
-train_df, valid_df = train_test_split(DF, test_size=test_size, shuffle=True)
-
-
-#test_df = pd.read_csv("/notebooks/pixels-CLS/RICE/DATA/TEST.csv", encoding='unicode_escape')
-#sample_submission = pd.read_csv("/notebooks/pixels-CLS/RICE/DATA/SampleSubmission.csv", encoding='unicode_escape')
-######################
-#kf = KFold(n_splits=FOLD_CFG.SPLITS, shuffle=True, random_state=FOLD_CFG.SEED)
-##############
-
-
-####
-TRAIN_PATH = "/notebooks/dataset/DATASET"
-
-########
-##TEST_PATH = "/notebooks/pixels-CLS/RICE/DATA/TEST-IMAGES"
+from sklearn.model_selection import train_test_split
+from pytorch_lightning import LightningDataModule
 
 
 
 
-# ====================================================
-# Dataset
-# ====================================================
+class Shoe40kTransforms(T.Compose):
+    def __init__(self, phase):
+        self.phase = phase
+        self.transforms = {
+            'train': [
+                T.Resize((32, 32)),
+                T.RandomHorizontalFlip(),
+                T.ToTensor(),
+                T.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ],
+            'val': [
+                T.Resize((32, 32)),
+                T.ToTensor(),
+                T.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ],
+            'test': [
+                T.Resize((32, 32)),
+                T.ToTensor(),
+                T.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ]
+        }
+        
+        super().__init__(self.transforms[self.phase])
 
-   
 
 
-class ShoeDataset(Dataset):
-    def __init__(self, df, transform=None):
+class Shoe40kDataset(Dataset):
+    def __init__(self, df, path, phase):
         self.df = df
+        self.path = path
         self.file_names = df['IMAGE_ID'].values
         self.labels = df['Label'].values
-        self.transform = transform
+        self.phase = phase
+        self.transform = Shoe40kTransforms(phase=phase)
+
         
     def __len__(self):
         return len(self.df) 
 
     def __getitem__(self, idx):
         file_name = self.file_names[idx]
-        file_path = os.path.join(TRAIN_PATH, file_name)
+        file_path = os.path.join(self.path, file_name)
         
         # Load the image using PIL.Image.open()
         with Image.open(file_path) as image:
@@ -95,52 +91,36 @@ class ShoeDataset(Dataset):
         images = torch.stack(images, dim=0)
         labels = torch.as_tensor(labels)
         return images, labels
-
-
-
-def get_dataloaders(cfg, processor):
     
-    train_dataset = Ego4dDataset(
-                        processor, 
-                        annotations_file=cfg["train_data_file"], 
-                        num_pos_queries=cfg["num_pos_queries"], 
-                        num_neg_queries=cfg["num_neg_queries"],
-                        is_train=True
-                    )
-    test_dataset = Ego4dDataset(
-                        processor,
-                        annotations_file=cfg["train_data_file"],
-                        num_pos_queries=cfg["num_pos_queries"], 
-                        num_neg_queries=cfg["num_neg_queries"],
-                        is_train=False
-                    )
     
-    train_dataloader = DataLoader(train_dataset, batch_size=cfg["train_batch_size"], shuffle=True, num_workers=1)
-    test_dataloader = DataLoader(test_dataset, batch_size=cfg["train_batch_size"], shuffle=False, num_workers=1)
+
+class Shoe40kDataModule(LightningDataModule):
     
-    return train_dataloader, test_dataloader
+    def __init__(self, csv_path, dataset_path, batch_size):
+        super().__init__()
+        self.csv_path = csv_path
+        self.dataset_path = dataset_path
+        self.batch_size = batch_size
+        
+    def setup(self, stage=None):
+        # Load your CSV file containing image filenames and labels
+        df = pd.read_csv(self.csv_path)
+        
+        df['Label'] = df['Label'].apply(lambda x: x[0:4]).astype('category').cat.codes
 
+        # Split dataset into training and testing sets with stratified sampling
+        train_df, val_df = train_test_split(df, test_size=0.2, stratify=df['Label'], random_state=42)
+ 
+        self.train_dataset = Shoe40kDataset(df=train_df, path=self.dataset_path, phase='train')
+        self.val_dataset = Shoe40kDataset(df=val_df, path=self.dataset_path, phase='val')
 
-import torch
+    def train_dataloader(self):
+        return DataLoader(dataset=self.train_dataset,
+                          batch_size=self.batch_size, 
+                          num_workers=12, shuffle=True)
+    
+    def val_dataloader(self):
+        return DataLoader(dataset=self.val_dataset,
+                          batch_size=self.batch_size, 
+                          num_workers=12, shuffle=False)
 
-class IMDbDataset(torch.utils.data.Dataset):
-    def __init__(self, encodings, labels):
-        self.encodings = encodings
-        self.labels = labels
-
-    def __getitem__(self, idx):
-        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
-        item['labels'] = torch.tensor(self.labels[idx])
-        return item
-
-    def __len__(self):
-        return len(self.labels)
-
-train_dataset = IMDbDataset(train_encodings, train_labels)
-val_dataset = IMDbDataset(val_encodings, val_labels)
-#test_dataset = IMDbDataset(test_encodings, test_labels)
-
-
-
-train_dataset.set_transform(preprocess_train)
-val_dataset.set_transform(preprocess_val)
