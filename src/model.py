@@ -51,7 +51,7 @@ class Shoe40kClassificationModel(pl.LightningModule):
         label_smoothing: float = 0.0,
         image_size: int = 224,
         weights: Optional[str] = None,
-        training_mode: str = "full",
+        training_mode: str = "lora",
         lora_r: int = 16,
         lora_alpha: int = 16,
         lora_target_modules: List[str] = ["query", "value"],
