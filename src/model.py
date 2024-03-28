@@ -17,12 +17,13 @@ from torch.optim.lr_scheduler import LambdaLR
 
 
 
-from torchmetrics import MetricCollection
-from torchmetrics.functional import f1_score
-from torchmetrics.classification.accuracy import Accuracy           #Confusion Matrix, FI Score
-from torchmetrics.classification.stat_scores import StatScores
-from pytorch_lightning.metrics.functional import accuracy
+#from torchmetrics import MetricCollection
+#from torchmetrics.functional import f1_score
+#from torchmetrics.classification.accuracy import Accuracy           #Confusion Matrix, FI Score
+#from torchmetrics.classification.stat_scores import StatScores
+#from pytorch_lightning.metrics.functional import accuracy
 
+from torcheval.metrics import MulticlassAccuracy, MulticlassPrecision, MulticlassF1Score
 
 from transformers import AutoConfig, AutoModelForImageClassification
 from transformers.optimization import get_cosine_schedule_with_warmup
@@ -38,7 +39,7 @@ MODEL_DICT = {
 class Shoe40kClassificationModel(pl.LightningModule):
     def __init__(
         self,
-        model_name: str = "vit-b16-224-in21k",
+        model_name: str = "vit-l15-224-in21k",
         optimizer: str = "sgd",
         lr: float = 1e-2,
         betas: Tuple[float, float] = (0.9, 0.999),
