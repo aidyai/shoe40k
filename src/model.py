@@ -17,16 +17,16 @@ from torch.optim.lr_scheduler import LambdaLR
 
 
 
-#from torchmetrics import MetricCollection
-#from torchmetrics.functional import f1_score
-#from torchmetrics.classification.accuracy import Accuracy           #Confusion Matrix, FI Score
-#from torchmetrics.classification.stat_scores import StatScores
-#from pytorch_lightning.metrics.functional import accuracy
-
-from torcheval.metrics import MulticlassAccuracy, MulticlassPrecision, MulticlassF1Score
-
 from transformers import AutoConfig, AutoModelForImageClassification
 from transformers.optimization import get_cosine_schedule_with_warmup
+
+from torcheval.metrics import (
+    MulticlassAccuracy,
+    MulticlassPrecision,
+    MulticlassRecall,
+    MulticlassF1Score,
+    MulticlassAUROC,
+)
 
 
 
@@ -47,7 +47,7 @@ class Shoe40kClassificationModel(pl.LightningModule):
         weight_decay: float = 0.0,
         scheduler: str = "cosine",
         warmup_steps: int = 0,
-        n_classes: int = 10,
+        n_classes: int = 6,
         label_smoothing: float = 0.0,
         image_size: int = 224,
         weights: Optional[str] = None,
@@ -143,6 +143,11 @@ class Shoe40kClassificationModel(pl.LightningModule):
             modules_to_save=["classifier"],
         )
         self.net = get_peft_model(self.net, config)
+
+        self.accuracy = MulticlassAccuracy(num_classes=self.n_classes)
+        self.recall = MulticlassRecall(num_classes=self.n_classes)
+        self.precision = MulticlassPrecision(num_classes=self.n_classes)
+        self.f1_score = MulticlassF1Score(num_classes=self.n_classes)
         
 
     def forward(self, x):
@@ -152,15 +157,25 @@ class Shoe40kClassificationModel(pl.LightningModule):
     def _evaluate(self, batch, batch_idx, stage):
         x, y = batch
         out = self.forward(x)
+        
+        
         loss = F.cross_entropy(out, y)
         preds = torch.argmax(out, dim=1)
-        acc = accuracy(preds, y)
-        f1 = f1_score(preds, y, num_classes=self.num_classes, average='macro')
+
+
+        acc = self.accuracy(preds, y)
+        f1 = self.f1_score(preds, y)
+        recall = self.recall.update(preds, y)
+        precision = self.precision.update(preds, y)
+
+        
         self.log(f'{stage}_loss', loss, prog_bar=True)
         self.log(f'{stage}_acc', acc, prog_bar=True)
         self.log(f'{stage}_f1', f1, prog_bar=True)
+        self.log(f'{stage}_recall', recall, prog_bar=True)
+        self.log(f'{stage}_precision', precision, prog_bar=True)
 
-        return loss, acc, f1
+        return loss, acc, f1, recall, precision
 
     def training_step(self, batch, _):
         self.log("lr", self.trainer.optimizers[0].param_groups[0]["lr"], prog_bar=True)
