@@ -4,9 +4,9 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 
 
-from dataset import Shoe40kDataModule
-from model import Shoe40kClassificationModel
-from image_logger import ImagePredictionLogger
+from .dataset import Shoe40kDataModule
+from .model import Shoe40kClassificationModel
+from .image_logger import ImagePredictionLogger
 
 
 
