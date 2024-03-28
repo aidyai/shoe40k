@@ -4,11 +4,46 @@ import torch
 from PIL import Image
 import pandas as pd
 from torch.nn.modules import transformer
-from torchvision import transforms
+import torchvision.transforms as T
 from torch.utils.data import Dataset, DataLoader
-
 from sklearn.model_selection import train_test_split
 from pytorch_lightning import LightningDataModule
+
+
+
+
+class Shoe40kTransforms(T.Compose):
+    def __init__(self, phase):
+        self.phase = phase
+        self.transforms = {
+            'train': [
+                T.Resize((32, 32)),
+                T.RandomHorizontalFlip(),
+                T.ToTensor(),
+                T.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ],
+            'val': [
+                T.Resize((32, 32)),
+                T.ToTensor(),
+                T.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ],
+            'test': [
+                T.Resize((32, 32)),
+                T.ToTensor(),
+                T.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ]
+        }
+        
+        super().__init__(self.transforms[self.phase])
 
 
 
@@ -65,7 +100,6 @@ class Shoe40kDataModule(LightningDataModule):
         self.dataset_path = dataset_path
         self.batch_size = batch_size
         
-    def setup(self, stage=None):
         # Load your CSV file containing image filenames and labels
         df = pd.read_csv(self.csv_path)
         
