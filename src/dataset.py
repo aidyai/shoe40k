@@ -5,6 +5,8 @@ from PIL import Image
 import pandas as pd
 from torch.nn.modules import transformer
 import torchvision.transforms as T
+
+from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from pytorch_lightning import LightningDataModule
