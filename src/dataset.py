@@ -52,7 +52,7 @@ class Shoe40kDataset(Dataset):
     def __init__(self, df, path, phase):
         self.df = df
         self.path = path
-        self.file_names = df['IMAGE_ID'].values
+        self.file_names = df['file_name'].values
         self.labels = df['Label'].values
         self.phase = phase
         self.transform = Shoe40kTransforms(phase=phase)
