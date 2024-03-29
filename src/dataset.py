@@ -51,7 +51,7 @@ class Shoe40kTransforms(T.Compose):
 
 
 class Shoe40kDataset(Dataset):
-    def __init__(self, df, path, phase):
+    def __init__(self, df, path, phase, transform=None):
         self.df = df
         self.path = path
         self.file_names = df['file_name'].values
@@ -59,9 +59,8 @@ class Shoe40kDataset(Dataset):
         self.phase = phase
         self.transform = Shoe40kTransforms(phase=phase)
 
-        
     def __len__(self):
-        return len(self.df) 
+        return len(self.df)
 
     def __getitem__(self, idx):
         file_name = self.file_names[idx]
@@ -72,18 +71,13 @@ class Shoe40kDataset(Dataset):
             # Convert the image to RGB
             image = image.convert('RGB')
         
-        
-        # Convert the PIL image to a PyTorch tensor
-        tensor_image = transforms.ToTensor()(image)
+        # Apply the transformation (if any) to the image
+        image = self.transform(image)     
 
-        # Apply the transformation (if any) to the tensor
-        if self.transform:
-            tensor_image = self.transform(tensor_image)
-                        
         # Convert the label to a PyTorch tensor
         label = torch.tensor(self.labels[idx]).long()
 
-        return tensor_image, label
+        return image, label
     
     @staticmethod
     def collate_fn(batch):
@@ -91,7 +85,6 @@ class Shoe40kDataset(Dataset):
         images = torch.stack(images, dim=0)
         labels = torch.as_tensor(labels)
         return images, labels
-    
     
 
 class Shoe40kDataModule(LightningDataModule):
