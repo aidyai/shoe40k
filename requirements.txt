@@ -2,3 +2,5 @@ wandb
 torcheval
 torch
 torchvision
+pytorch_lightning
+peft
