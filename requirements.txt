@@ -1,0 +1,4 @@
+wandb
+torcheval
+torch
+torchvision
