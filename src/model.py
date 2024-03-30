@@ -158,23 +158,30 @@ class Shoe40kClassificationModel(pl.LightningModule):
         x, y = batch
         out = self.forward(x)
         
-        
         loss = F.cross_entropy(out, y)
         preds = torch.argmax(out, dim=1)
-
-
-        acc = self.accuracy.update(preds, y)
-        f1 = self.f1_score.update(preds, y)
-        recall = self.recall.update(preds, y)
-        precision = self.precision.update(preds, y)
-
-        
+    
+        # Update accuracy metric
+        self.accuracy.update(preds, y)
+        acc = self.accuracy.compute()  # Compute accuracy after updating
+    
+        # Update other metrics
+        self.f1_score.update(preds, y)
+        self.recall.update(preds, y)
+        self.precision.update(preds, y)
+    
+        # Retrieve computed values of other metrics
+        f1 = self.f1_score.compute()
+        recall = self.recall.compute()
+        precision = self.precision.compute()
+    
+        # Log metrics
         self.log(f'{stage}_loss', loss, prog_bar=True)
         self.log(f'{stage}_acc', acc, prog_bar=True)
         self.log(f'{stage}_f1', f1, prog_bar=True)
         self.log(f'{stage}_recall', recall, prog_bar=True)
         self.log(f'{stage}_precision', precision, prog_bar=True)
-
+    
         return loss, acc, f1, recall, precision
 
     def training_step(self, batch, _):
