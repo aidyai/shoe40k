@@ -8,10 +8,6 @@ from .dataset import Shoe40kDataModule
 from .model import Shoe40kClassificationModel
 from .image_logger import ImagePredictionLogger
 
-
-
-
-
 def train(batch_size: int, 
           epochs: int,
           csv_path: str,
