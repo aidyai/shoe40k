@@ -53,16 +53,17 @@ def train(batch_size: int,
 
     # Initialize Callbacks
     early_stop_callback = pl.callbacks.EarlyStopping(monitor="val_loss")
-    checkpoint_callback = pl.callbacks.ModelCheckpoint()
 
-    # Initialize a trainer
-    trainer = pl.Trainer(max_epochs=50,
-                        progress_bar_refresh_rate=20, 
-                        gpus=1, 
-                        logger=wandb_logger,
-                        callbacks=[early_stop_callback,
-                                    ImagePredictionLogger(val_samples)],
-                        checkpoint_callback=checkpoint_callback)
+    trainer = pl.Trainer(enable_checkpointing=True,
+                     enable_model_summary=True,
+                     devices=[0],
+                     callbacks=[early_stop_callback,
+                                ImagePredictionLogger(val_samples)],
+                     max_epochs=50,
+                     min_epochs=1,
+                     logger=wandb_logger,
+                     accelerator="gpu"
+          )
 
 
 
