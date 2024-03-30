@@ -163,8 +163,8 @@ class Shoe40kClassificationModel(pl.LightningModule):
         preds = torch.argmax(out, dim=1)
 
 
-        acc = self.accuracy(preds, y)
-        f1 = self.f1_score(preds, y)
+        acc = self.accuracy.update(preds, y)
+        f1 = self.f1_score.update(preds, y)
         recall = self.recall.update(preds, y)
         precision = self.precision.update(preds, y)
 
