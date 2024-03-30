@@ -19,7 +19,7 @@ class Shoe40kTransforms(T.Compose):
         self.phase = phase
         self.transforms = {
             'train': [
-                T.Resize((32, 32)),
+                T.Resize((224, 224)),
                 T.RandomHorizontalFlip(),
                 T.ToTensor(),
                 T.Normalize(
@@ -28,7 +28,7 @@ class Shoe40kTransforms(T.Compose):
                 )
             ],
             'val': [
-                T.Resize((32, 32)),
+                T.Resize((224, 224)),
                 T.ToTensor(),
                 T.Normalize(
                     mean=[0.485, 0.456, 0.406],
@@ -36,7 +36,7 @@ class Shoe40kTransforms(T.Compose):
                 )
             ],
             'test': [
-                T.Resize((32, 32)),
+                T.Resize((224, 224)),
                 T.ToTensor(),
                 T.Normalize(
                     mean=[0.485, 0.456, 0.406],
