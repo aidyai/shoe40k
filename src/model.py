@@ -182,8 +182,8 @@ class Shoe40kClassificationModel(pl.LightningModule):
         loss, acc, f1 = self._evaluate(batch, stage="train")
         return loss
 
-    def validation_step(self, batch, _):
-        return self._evaluate(batch, stage="val")
+    def validation_step(self, batch, batch_idx):
+        return self._evaluate(batch, batch_idx, stage="val")
     
 
     def configure_optimizers(self):
