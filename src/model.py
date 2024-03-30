@@ -154,7 +154,7 @@ class Shoe40kClassificationModel(pl.LightningModule):
         return self.net(pixel_values=x).logits
 
 
-    def _evaluate(self, batch, batch_idx, stage):
+    def _evaluate(self, batch, batch_idx, stage=''):
         x, y = batch
         out = self.forward(x)
         
@@ -179,11 +179,11 @@ class Shoe40kClassificationModel(pl.LightningModule):
 
     def training_step(self, batch, _):
         self.log("lr", self.trainer.optimizers[0].param_groups[0]["lr"], prog_bar=True)
-        loss, acc, f1 = self._evaluate(batch, "train")
+        loss, acc, f1 = self._evaluate(batch, stage="train")
         return loss
 
     def validation_step(self, batch, _):
-        return self._evaluate(batch, "val")
+        return self._evaluate(batch, stage="val")
     
 
     def configure_optimizers(self):
