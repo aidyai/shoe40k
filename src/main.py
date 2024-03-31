@@ -52,13 +52,13 @@ def train(batch_size: int,
 
     trainer = pl.Trainer(enable_checkpointing=True,
                      enable_model_summary=True,
-                     devices=[0],
+                     devices=auto,
                      callbacks=[early_stop_callback,
                                 ImagePredictionLogger(val_samples)],
                      max_epochs=50,
                      min_epochs=1,
                      logger=wandb_logger,
-                     accelerator="gpu"
+                     accelerator="cpu"
           )
 
 
