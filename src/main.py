@@ -52,7 +52,7 @@ def train(batch_size: int,
 
     trainer = pl.Trainer(enable_checkpointing=True,
                      enable_model_summary=True,
-                     devices=auto,
+                     devices="auto",
                      callbacks=[early_stop_callback,
                                 ImagePredictionLogger(val_samples)],
                      max_epochs=50,
