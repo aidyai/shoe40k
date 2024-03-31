@@ -186,7 +186,7 @@ class Shoe40kClassificationModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         self.log("lr", self.trainer.optimizers[0].param_groups[0]["lr"], prog_bar=True)
-        loss, acc, f1 = self._evaluate(batch, batch_idx, stage="train")
+        loss, acc, f1, recall, precision = self._evaluate(batch, batch_idx, stage="train")
         return loss
 
     def validation_step(self, batch, batch_idx):
