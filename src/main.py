@@ -47,7 +47,7 @@ def train(batch_size: int,
     }
 
     # Init the PyTorch Lightning WandbLogger (you need to `wandb login` first!)
-    wandb_logger = WandbLogger(project='shoe40k', job_type='train', config=wandb_config)
+    wandb_logger = WandbLogger(project='shoe40k', job_type='train', config=wandb_config, log_model="all")
 
     # Initialize Callbacks
     early_stop_callback = EarlyStopping(monitor="val_f1_score")
