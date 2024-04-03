@@ -1,3 +1,4 @@
+import gc
 import torch
 from src.main import train
 
