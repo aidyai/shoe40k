@@ -154,43 +154,54 @@ class Shoe40kClassificationModel(pl.LightningModule):
         return self.net(pixel_values=x).logits
 
 
-    def _evaluate(self, batch, batch_idx, stage=''):
-        x, y = batch
-        out = self.forward(x)
-        
-        loss = F.cross_entropy(out, y)
-        preds = torch.argmax(out, dim=1)
+    def _compute_metrics(self, batch, split):
+      x, y = batch
+      out = self.forward(x)
     
-        # Update accuracy metric
-        self.accuracy.update(preds, y)
-        acc = self.accuracy.compute()  # Compute accuracy after updating
+      loss = F.cross_entropy(out, y)
+      preds = torch.argmax(out, dim=1)
     
-        # Update other metrics
-        self.f1_score.update(preds, y)
-        self.recall.update(preds, y)
-        self.precision.update(preds, y)
+      metrics = {
+          f"{split}_Loss": loss,
+          f"{split}_Acc": self.accuracy(
+              preds=preds,
+              target=y,
+          ),
     
-        # Retrieve computed values of other metrics
-        f1 = self.f1_score.compute()
-        recall = self.recall.compute()
-        precision = self.precision.compute()
+          f"{split}_Loss": loss,
+          f"{split}_F1Score":self.f1_score(
+              preds=preds,
+              target=y,
+          ),
     
-        # Log metrics
-        self.log(f'{stage}_loss', loss, prog_bar=True)
-        self.log(f'{stage}_acc', acc, prog_bar=True)
-        self.log(f'{stage}_f1', f1, prog_bar=True)
-        self.log(f'{stage}_recall', recall, prog_bar=True)
-        self.log(f'{stage}_precision', precision, prog_bar=True)
+          f"{split}_Loss": loss,
+          f"{split}_F1Score": self.recall(
+              preds=preds,
+              target=y,
+          ),
     
-        return loss, acc, f1, recall, precision
-
+    
+          f"{split}_Loss":loss,
+          f"{split}_Precision":self.precision(
+              preds=preds,
+              target=y,
+          ),
+        }
+    
+      return loss, metrics
+    
     def training_step(self, batch, batch_idx):
-        self.log("lr", self.trainer.optimizers[0].param_groups[0]["lr"], prog_bar=True)
-        loss, acc, f1, recall, precision = self._evaluate(batch, batch_idx, stage="train")
-        return loss
-
+      loss, metrics = self._compute_metrics(batch, "train")
+      self.log_dict(metrics, on_epoch=True, on_step=False)
+    
+      return loss
+    
+    
     def validation_step(self, batch, batch_idx):
-        return self._evaluate(batch, batch_idx, stage="val")
+      _, metrics = self._compute_metrics(batch, "val")
+      self.log_dict(metrics, on_epoch=True, on_step=False)
+    
+      return metrics
     
 
     def configure_optimizers(self):
