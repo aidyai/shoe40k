@@ -1,12 +1,4 @@
-
-
-"""Lighning Module 
-From: https://github.com/bwconrad/vit-finetune/blob/main/src/model.py
-"""
-
-
 from typing import List, Optional, Tuple
-
 import pandas as pd
 import pytorch_lightning as pl
 import torch
@@ -111,10 +103,10 @@ class Shoe40kClassificationModel(pl.LightningModule):
 
 
 
-        self.accuracy = MulticlassAccuracy(num_classes=self.n_classes, average=None)
-        self.recall = MulticlassRecall(num_classes=self.n_classes, average=None)
-        self.precision = MulticlassPrecision(num_classes=self.n_classes, average=None)
-        self.f1_score = MulticlassF1Score(num_classes=self.n_classes, average=None)
+        self.accuracy = MulticlassAccuracy(num_classes=self.n_classes)
+        self.recall = MulticlassRecall(num_classes=self.n_classes)
+        self.precision = MulticlassPrecision(num_classes=self.n_classes)
+        self.f1_score = MulticlassF1Score(num_classes=self.n_classes)
         
 
     def forward(self, x):
