@@ -8,6 +8,7 @@ from .dataset import Shoe40kDataModule
 from .model import Shoe40kClassificationModel
 from .image_logger import ImagePredictionLogger
 
+
 def train(batch_size: int, 
           epochs: int,
           csv_path: str,
@@ -48,17 +49,27 @@ def train(batch_size: int,
     wandb_logger = WandbLogger(project='shoe40k', job_type='train', config=wandb_config)
 
     # Initialize Callbacks
-    early_stop_callback = pl.callbacks.EarlyStopping(monitor="val_loss")
+    early_stop_callback = pl.callbacks.EarlyStopping(monitor="val_f1_score")
+    
+    # Keep the model with the highest F1 score.
+    checkpoint_callback = ModelCheckpoint(
+            filename="{epoch}-{val_f1_score:.2f}",
+            monitor="val_f1_score",
+            mode="max",
+            verbose=True,
+            save_top_k=1,
+          )
 
     trainer = pl.Trainer(enable_checkpointing=True,
                      enable_model_summary=True,
-                     devices="auto",
                      callbacks=[early_stop_callback,
-                                ImagePredictionLogger(val_samples)],
+                                ImagePredictionLogger(val_samples),                                
+                                checkpoint_callback,
+                               ],
                      max_epochs=50,
                      min_epochs=1,
                      logger=wandb_logger,
-                     accelerator="cpu"
+                     accelerator="gpu"
           )
 
 
