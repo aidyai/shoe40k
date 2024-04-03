@@ -1,6 +1,6 @@
 
 
-"""Lighning Module
+"""Lighning Module 
 From: https://github.com/bwconrad/vit-finetune/blob/main/src/model.py
 """
 
@@ -31,15 +31,10 @@ from torcheval.metrics import (
 
 
 
-MODEL_DICT = {
-    "vit-l15-224-in21k": "google/vit-large-patch16-224-in21k",
-}
-
-
 class Shoe40kClassificationModel(pl.LightningModule):
     def __init__(
         self,
-        model_name: str = "vit-l15-224-in21k",
+        model_checkpoint: str = "google/vit-base-patch16-224-in21k"
         optimizer: str = "sgd",
         lr: float = 1e-2,
         betas: Tuple[float, float] = (0.9, 0.999),
@@ -51,7 +46,6 @@ class Shoe40kClassificationModel(pl.LightningModule):
         label_smoothing: float = 0.0,
         image_size: int = 224,
         weights: Optional[str] = None,
-        training_mode: str = "lora",
         lora_r: int = 16,
         lora_alpha: int = 16,
         lora_target_modules: List[str] = ["query", "value"],
@@ -82,7 +76,7 @@ class Shoe40kClassificationModel(pl.LightningModule):
         """
         super().__init__()
         self.save_hyperparameters()
-        self.model_name = model_name
+        self.model_checkpoint = model_checkpoint
         self.optimizer = optimizer
         self.lr = lr
         self.betas = betas
@@ -94,46 +88,21 @@ class Shoe40kClassificationModel(pl.LightningModule):
         self.label_smoothing = label_smoothing
         self.image_size = image_size
         self.weights = weights
-        self.training_mode = training_mode
         self.lora_r = lora_r
         self.lora_alpha = lora_alpha
         self.lora_target_modules = lora_target_modules
         self.lora_dropout = lora_dropout
         self.lora_bias = lora_bias
 
-        # Initialize network
-        try:
-            model_path = MODEL_DICT[self.model_name]
-        except:
-            raise ValueError(
-                f"{model_name} is not an available model. Should be one of {[k for k in MODEL_DICT.keys()]}"
-            )
-
         # Initialize with pretrained weights
         self.net = AutoModelForImageClassification.from_pretrained(
-            model_path,
+            model_checkpoint,
             num_labels=self.n_classes,
             ignore_mismatched_sizes=True,
             image_size=self.image_size,
         )
 
-        # Load checkpoint weights
-        if self.weights:
-            print(f"Loaded weights from {self.weights}")
-            ckpt = torch.load(self.weights)["state_dict"]
 
-            # Remove prefix from key names
-            new_state_dict = {}
-            for k, v in ckpt.items():
-                if k.startswith("net"):
-                    k = k.replace("net" + ".", "")
-                    new_state_dict[k] = v
-
-            self.net.load_state_dict(new_state_dict, strict=True)
-
-
-        #if self.training_mode == "lora":
-            # Wrap in LoRA model
         config = LoraConfig(
             r=self.lora_r,
             lora_alpha=self.lora_alpha,
