@@ -19,22 +19,17 @@ from torch.optim.lr_scheduler import LambdaLR
 
 from transformers import AutoConfig, AutoModelForImageClassification
 from transformers.optimization import get_cosine_schedule_with_warmup
-
-from torcheval.metrics import (
+from torchmetrics.classification import (
     MulticlassAccuracy,
     MulticlassPrecision,
     MulticlassRecall,
     MulticlassF1Score,
-    MulticlassAUROC,
 )
-
-
-
 
 class Shoe40kClassificationModel(pl.LightningModule):
     def __init__(
         self,
-        model_checkpoint: str = "google/vit-base-patch16-224-in21k"
+        model_checkpoint: str = "google/vit-base-patch16-224-in21k",
         optimizer: str = "sgd",
         lr: float = 1e-2,
         betas: Tuple[float, float] = (0.9, 0.999),
@@ -113,10 +108,13 @@ class Shoe40kClassificationModel(pl.LightningModule):
         )
         self.net = get_peft_model(self.net, config)
 
-        self.accuracy = MulticlassAccuracy(num_classes=self.n_classes)
-        self.recall = MulticlassRecall(num_classes=self.n_classes)
-        self.precision = MulticlassPrecision(num_classes=self.n_classes)
-        self.f1_score = MulticlassF1Score(num_classes=self.n_classes)
+
+
+
+        self.accuracy = MulticlassAccuracy(num_classes=self.n_classes, average=None)
+        self.recall = MulticlassRecall(num_classes=self.n_classes, average=None)
+        self.precision = MulticlassPrecision(num_classes=self.n_classes, average=None)
+        self.f1_score = MulticlassF1Score(num_classes=self.n_classes, average=None)
         
 
     def forward(self, x):
