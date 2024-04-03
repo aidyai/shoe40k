@@ -7,7 +7,7 @@ from pytorch_lightning.loggers import WandbLogger
 from .dataset import Shoe40kDataModule
 from .model import Shoe40kClassificationModel
 from .image_logger import ImagePredictionLogger
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 
 def train(batch_size: int, 
