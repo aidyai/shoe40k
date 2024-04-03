@@ -7,6 +7,7 @@ from pytorch_lightning.loggers import WandbLogger
 from .dataset import Shoe40kDataModule
 from .model import Shoe40kClassificationModel
 from .image_logger import ImagePredictionLogger
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
 
 def train(batch_size: int, 
@@ -49,7 +50,7 @@ def train(batch_size: int,
     wandb_logger = WandbLogger(project='shoe40k', job_type='train', config=wandb_config)
 
     # Initialize Callbacks
-    early_stop_callback = pl.callbacks.EarlyStopping(monitor="val_f1_score")
+    early_stop_callback = EarlyStopping(monitor="val_f1_score")
     
     # Keep the model with the highest F1 score.
     checkpoint_callback = ModelCheckpoint(
