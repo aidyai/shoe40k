@@ -1,9 +1,14 @@
+import torch
 from src.main import train
 
 if __name__ == '__main__':
+    # Free up gpu vRAM from memory leaks.
+    torch.cuda.empty_cache()
+    gc.collect()
+    
     # Define variables
-    batch_size = 32
-    epochs = 10
+    batch_size = 8
+    epochs = 3
     csv_path = '/content/FOOT40K.csv'
     dataset_path = '/content/FOOT40k'
 
