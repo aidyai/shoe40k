@@ -138,20 +138,20 @@ class Shoe40kClassificationModel(pl.LightningModule):
           ),
     
           f"{split}_Loss": loss,
-          f"{split}_F1Score":self.f1_score(
+          f"{split}_f1_score":self.f1_score(
               preds=preds,
               target=y,
           ),
     
           f"{split}_Loss": loss,
-          f"{split}_F1Score": self.recall(
+          f"{split}_recall": self.recall(
               preds=preds,
               target=y,
           ),
     
     
           f"{split}_Loss":loss,
-          f"{split}_Precision":self.precision(
+          f"{split}_precision":self.precision(
               preds=preds,
               target=y,
           ),
