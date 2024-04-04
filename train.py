@@ -8,8 +8,8 @@ if __name__ == '__main__':
     gc.collect()
     
     # Define variables
-    batch_size = 8
-    epochs = 3
+    batch_size = 12
+    epochs = 10
     csv_path = '/content/FOOT40K.csv'
     dataset_path = '/content/FOOT40k'
 
