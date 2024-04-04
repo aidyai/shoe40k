@@ -3,9 +3,9 @@ from PIL import Image
 import requests
 
 import torch
-from model import ColaModel
-from data import DataModule
-import sys
+from src.model import Shoe40kClassificationModel
+#from data import DataModule
+#import sys
 
 
 
@@ -13,13 +13,19 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 
-class ImageClassifier:
+import torch
+import torchvision.transforms as transforms
+from PIL import Image
+
+class Inference:
     def __init__(self, model_path, class_names):
         self.model_path = model_path
         self.class_names = class_names
 
         # Load the model
-        self.model = torch.load(model_path)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = Shoe40kClassificationModel.load_from_checkpoint(model_path)
+        self.model.to(self.device)
         self.model.eval()
         self.softmax = torch.nn.Softmax(dim=0)
 
@@ -36,7 +42,7 @@ class ImageClassifier:
     def predict(self, image_path):
         # Load and preprocess the input image
         image = Image.open(image_path)
-        image = self.transform(image)
+        image = self.transform(image).to(self.device)  # Move input tensor to the same device as the model
         image = image.unsqueeze(0)
 
         # Perform inference
@@ -60,10 +66,10 @@ class ImageClassifier:
         return predictions
 
 # Example usage:
-class_names = ["Boot", "Dressing Shoe", "Heels", "Sandals", "Sneakers"]
-model_path = './.ckpt'  # Update with your model path
-image_path = './.jpg'  # Update with your image path
+class_names = ["Boot", "Dressing Shoe", "Heels", "Sandals", "Sneakers", "Crocs"]
+model_path = '/content/shoe40k/shoe40k/jnjylkpi/checkpoints/epoch=0-val_f1_score=0.90.ckpt'  # Update with your model path
+image_path = '/content/sh.jpg'  # Update with your image path
 
-classifier = ImageClassifier(model_path, class_names)
+classifier = Inference(model_path, class_names)
 predictions = classifier.predict(image_path)
 print(predictions)
