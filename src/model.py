@@ -21,7 +21,7 @@ from torchmetrics.classification import (
 class Shoe40kClassificationModel(pl.LightningModule):
     def __init__(
         self,
-        model_checkpoint: str = "google/vit-base-patch16-224-in21k",
+        model_checkpoint: str = "google/vit-base-patch16-384",
         optimizer: str = "sgd",
         lr: float = 1e-2,
         betas: Tuple[float, float] = (0.9, 0.999),
