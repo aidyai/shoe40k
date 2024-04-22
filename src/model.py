@@ -22,7 +22,7 @@ class Shoe40kClassificationModel(pl.LightningModule):
     def __init__(
         self,
         model_checkpoint: str = "google/vit-base-patch16-384",
-        optimizer: str = "sgd",
+        optimizer: str = "adam",
         lr: float = 1e-2,
         betas: Tuple[float, float] = (0.9, 0.999),
         momentum: float = 0.9,
