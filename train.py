@@ -1,14 +1,27 @@
+import os
+import yaml
 import gc
 import torch
 import wandb
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
-from .dataset import Shoe40kDataModule
-from .model import Shoe40kClassificationModel
-from .image_logger import ImagePredictionLogger
+from src.dataset import Shoe40kDataModule
+from src.model import Shoe40kClassificationModel
+from src.image_logger import ImagePredictionLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 
+
+
+def load_config_from_yaml(config_file_path):
+    with open(config_file_path, 'r') as file:
+        config = yaml.safe_load(file)
+
+    # Resolve relative paths if necessary
+    config['csv_path'] = os.path.abspath(config['csv_path'])
+    config['dataset_path'] = os.path.abspath(config['dataset_path'])
+
+    return config
 
 def train(config_file_path: str):
 
@@ -71,5 +84,5 @@ def train(config_file_path: str):
 if __name__ == '__main__':
     torch.cuda.empty_cache()
     gc.collect()  
-    config_file_path = './config.yaml'  
+    config_file_path = '/content/shoe40k/config.yaml'  
     train(config_file_path)
