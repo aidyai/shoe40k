@@ -1,17 +1,75 @@
 import gc
 import torch
-from src.main import train
+import wandb
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
+from .dataset import Shoe40kDataModule
+from .model import Shoe40kClassificationModel
+from .image_logger import ImagePredictionLogger
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
-if __name__ == '__main__':
-    # Free up gpu vRAM from memory leaks.
-    torch.cuda.empty_cache()
-    gc.collect()
+
+
+def train(config_file_path: str):
+
+    # Load experiment configuration from YAML file
+    wandb_config = load_config_from_yaml(config_file_path)
+
+    # Instantiate LightningDataModule to determine dataset sizes
+    data_module = Shoe40kDataModule(wandb_config['csv_path'], wandb_config['dataset_path'], batch_size=wandb_config['batch_size'])
+
+    # DataLoaders for both the train and validation datasets
+    train_loader = data_module.train_dataloader()
+    val_loader = data_module.val_dataloader()
+
+    # Samples required by the custom ImagePredictionLogger callback to log image predictions.
+    val_samples = next(iter(val_loader))
     
-    # Define variables
-    batch_size = 12
-    epochs = 10
-    csv_path = '/content/FOOT40K.csv'
-    dataset_path = '/content/FOOT40k'
+    # dataset related configuration parameters
+    wandb_config['train_batches'] =  len(train_loader)
+    wandb_config['val_batches'] = len(val_loader)
+    wandb_config['dataset_train_size'] = len(train_loader.dataset)
+    wandb_config['dataset_val_size'] = len(val_loader.dataset)
 
-    # Call the train function
-    train(batch_size, epochs, csv_path, dataset_path)
+    # Determining the WandbLogger configuration based on the presence of 'id'
+    if 'id' in wandb_config:
+        wandb_logger = WandbLogger(project='shoe40k', job_type='train', config=wandb_config, log_model="all", resume='must')
+    else:
+        wandb_logger = WandbLogger(project='shoe40k', job_type='train', config=wandb_config, log_model="all")
+
+    # Instantiating the model
+    model = Shoe40kClassificationModel()
+
+    # Callbacks
+    early_stop_callback = EarlyStopping(monitor="val_f1_score")
+    checkpoint_callback = ModelCheckpoint(
+        filename="{epoch}-{val_f1_score:.2f}",
+        monitor="val_f1_score",
+        mode="max",
+        verbose=True,
+        save_top_k=1,
+    )
+
+    trainer = pl.Trainer(
+        enable_checkpointing=True,
+        enable_model_summary=True,
+        callbacks=[early_stop_callback,
+                   checkpoint_callback,
+                   ],
+        max_epochs=wandb_config['max_epochs'],
+        min_epochs=wandb_config['min_epochs'],
+        logger=wandb_logger,
+        accelerator=wandb_config['accelerator']
+    )
+
+    trainer.fit(model, train_loader, val_loader)
+
+    # Close wandb run
+    wandb.finish()
+
+   
+if __name__ == '__main__':
+    torch.cuda.empty_cache()
+    gc.collect()  
+    config_file_path = './config.yaml'  
+    train(config_file_path)
