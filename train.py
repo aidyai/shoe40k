@@ -46,7 +46,7 @@ def train(config_file_path: str):
 
     # Determining the WandbLogger configuration based on the presence of 'id'
     if 'id' in wandb_config:
-        wandb_logger = WandbLogger(id=wandb_config['id'], project='shoe40k', job_type='train', config=wandb_config, log_model="all", resume="must")
+        wandb_logger = WandbLogger(entity="aidyosu", id=wandb_config['id'], project='shoe40k', job_type='train', config=wandb_config, log_model="all", resume="must")
     else:
         wandb_logger = WandbLogger(project='shoe40k', job_type='train', config=wandb_config, log_model="all")
 
