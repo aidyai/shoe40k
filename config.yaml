@@ -1,1 +1,12 @@
-
+batch_size: 32
+id: u89x5aox
+accelerator: gpu
+min_epochs: 1
+max_epochs: 50
+epochs: 10
+csv_path: '/content/FOOT40K.csv'
+dataset_path: '/content/FOOT40k'
+dataset: shoe40k
+input_shape: [3, 344, 344]
+channels_last: false
+criterion: CrossEntropyLoss
