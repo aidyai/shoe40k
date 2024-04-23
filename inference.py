@@ -1,18 +1,7 @@
-
-from PIL import Image
 import requests
-
-import torch
 from src.model import Shoe40kClassificationModel
 #from data import DataModule
 #import sys
-
-
-
-import torch
-import torchvision.transforms as transforms
-from PIL import Image
-
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
@@ -31,7 +20,7 @@ class Inference:
 
         # Define preprocessing steps for input images
         self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),
+            transforms.Resize((384, 384)),
             transforms.ToTensor(),
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -67,8 +56,8 @@ class Inference:
 
 # Example usage:
 class_names = ["Boot", "Dressing Shoe", "Heels", "Sandals", "Sneakers", "Crocs"]
-model_path = '/content/shoe40k/shoe40k/jnjylkpi/checkpoints/epoch=0-val_f1_score=0.90.ckpt'  # Update with your model path
-image_path = '/content/sh.jpg'  # Update with your image path
+model_path = '/content/shoe40k/artifacts/model-pgqicubi:v0/model.ckpt'  # Update with your model path
+image_path = '/content/1.jpg'  # Update with your image path
 
 classifier = Inference(model_path, class_names)
 predictions = classifier.predict(image_path)
