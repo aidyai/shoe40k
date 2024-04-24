@@ -10,3 +10,4 @@ dataset: shoe40k
 input_shape: [3, 344, 344]
 channels_last: false
 criterion: CrossEntropyLoss
+project: shoe40k
