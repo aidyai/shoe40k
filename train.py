@@ -59,33 +59,36 @@ def train(config_file_path: str):
     )
 
     # Download the checkpoint artifact and resume training
-    resume_run_id = wandb_config.get('resume_run_id', '')
+    resume_run_id = True #wandb_config.get('resume_run_id', '')
     if resume_run_id:
         api = wandb.Api()
-        artifact = api.artifact(f"{wandb_config['project']}/model-{resume_run_id}:latest", type="model")
+        artifact = api.artifact(f"{wandb_config['project']}/model-{wandb_config['id']}:latest", type="model")
         artifact_dir = artifact.download()
         checkpoint_path = os.path.join(artifact_dir, "model.ckpt")
         model = Shoe40kClassificationModel.load_from_checkpoint(checkpoint_path)
 
         # Initialize WandbLogger for resume training
         wandb_logger = WandbLogger(
-            entity=wandb_config['entity'],
+            #entity=wandb_config['entity'],
             id=wandb_config['id'],
             project=wandb_config['project'],
             job_type='train',
             config=wandb_config,
             log_model="all",
-            resume="must"
+            #resume="allow"
         )
 
         trainer = pl.Trainer(
             enable_checkpointing=True,
             enable_model_summary=True,
             callbacks=[early_stop_callback, checkpoint_callback],
-            resume_from_checkpoint=checkpoint_path,
+            #resume_from_checkpoint=checkpoint_path,
             accelerator=wandb_config['accelerator'],
             logger=wandb_logger
         )
+
+        trainer.fit(model, train_loader, val_loader, ckpt_path=checkpoint_path)
+
     else:
         # Initialize WandbLogger for new training run
         wandb_logger = WandbLogger(
@@ -106,7 +109,9 @@ def train(config_file_path: str):
             logger=wandb_logger
         )
 
-    trainer.fit(model, train_loader, val_loader)
+        trainer.fit(model, train_loader, val_loader)
+
+
     
     # Close wandb run
     wandb.finish()
