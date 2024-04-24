@@ -23,6 +23,7 @@ def load_config_from_yaml(config_file_path):
 
     return config
 
+
 def train(config_file_path: str):
 
     # Load experiment configuration from YAML file
@@ -44,13 +45,7 @@ def train(config_file_path: str):
     wandb_config['dataset_train_size'] = len(train_loader.dataset)
     wandb_config['dataset_val_size'] = len(val_loader.dataset)
 
-    # Determining the WandbLogger configuration based on the presence of 'id'
-    if 'id' in wandb_config:
-        wandb_logger = WandbLogger(entity="aidyosu", id=wandb_config['id'], project='shoe40k', job_type='train', config=wandb_config, log_model="all", resume="must")
-    else:
-        wandb_logger = WandbLogger(project='shoe40k', job_type='train', config=wandb_config, log_model="all")
-
-    # Instantiating the model
+    # Initialize the Lightning module
     model = Shoe40kClassificationModel()
 
     # Callbacks
@@ -63,20 +58,56 @@ def train(config_file_path: str):
         save_top_k=1,
     )
 
-    trainer = pl.Trainer(
-        enable_checkpointing=True,
-        enable_model_summary=True,
-        callbacks=[early_stop_callback,
-                   checkpoint_callback,
-                   ],
-        max_epochs=wandb_config['max_epochs'],
-        min_epochs=wandb_config['min_epochs'],
-        logger=wandb_logger,
-        accelerator=wandb_config['accelerator']
-    )
+    # Download the checkpoint artifact and resume training
+    resume_run_id = wandb_config.get('resume_run_id', '')
+    if resume_run_id:
+        api = wandb.Api()
+        artifact = api.artifact(f"{wandb_config['project']}/model-{resume_run_id}:latest", type="model")
+        artifact_dir = artifact.download()
+        checkpoint_path = os.path.join(artifact_dir, "model.ckpt")
+        model = Shoe40kClassificationModel.load_from_checkpoint(checkpoint_path)
+
+        # Initialize WandbLogger for resume training
+        wandb_logger = WandbLogger(
+            entity=wandb_config['entity'],
+            id=wandb_config['id'],
+            project=wandb_config['project'],
+            job_type='train',
+            config=wandb_config,
+            log_model="all",
+            resume="must"
+        )
+
+        trainer = pl.Trainer(
+            enable_checkpointing=True,
+            enable_model_summary=True,
+            callbacks=[early_stop_callback, checkpoint_callback],
+            resume_from_checkpoint=checkpoint_path,
+            accelerator=wandb_config['accelerator'],
+            logger=wandb_logger
+        )
+    else:
+        # Initialize WandbLogger for new training run
+        wandb_logger = WandbLogger(
+            entity=wandb_config['entity'],
+            project=wandb_config['project'],
+            job_type='train',
+            config=wandb_config,
+            log_model="all"
+        )
+
+        trainer = pl.Trainer(
+            enable_checkpointing=True,
+            enable_model_summary=True,
+            callbacks=[early_stop_callback, checkpoint_callback],
+            max_epochs=wandb_config['max_epochs'],
+            min_epochs=wandb_config['min_epochs'],
+            accelerator=wandb_config['accelerator'],
+            logger=wandb_logger
+        )
 
     trainer.fit(model, train_loader, val_loader)
-
+    
     # Close wandb run
     wandb.finish()
 
