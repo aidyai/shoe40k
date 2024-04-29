@@ -1,5 +1,5 @@
-batch_size: 32
-id: pgqicubi
+batch_size: 16
+#id: pgqicubi
 accelerator: gpu
 min_epochs: 1
 max_epochs: 50
