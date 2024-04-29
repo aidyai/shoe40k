@@ -99,7 +99,7 @@ def train(config_file_path: str):
     else:
         # Initialize WandbLogger for new training run
         wandb_logger = WandbLogger(
-            id=wandb_config['id'],
+            #id=wandb_config['id'],
             project=wandb_config['project'],
             job_type='train',
             config=wandb_config,
