@@ -52,8 +52,7 @@ def train(config_file_path: str):
     wandb_config['dataset_train_size'] = len(train_loader.dataset)
     wandb_config['dataset_val_size'] = len(val_loader.dataset)
 
-    # Initialize the Lightning module
-    model = Shoe40kClassificationModel()
+
 
     # Callbacks
     early_stop_callback = EarlyStopping(monitor="val_f1_score")
@@ -66,8 +65,12 @@ def train(config_file_path: str):
     )
 
     # Check if resume_run_id is provided in wandb_config to resume training
-    resume_run_id = wandb_config.get('resume_run_id')
+    resume_run_id = wandb_config.get('id')
     if resume_run_id:
+
+        # Initialize the Lightning module
+        model = Shoe40kClassificationModel()
+        
         # Initialize WandbLogger for resuming training
         wandb_logger = WandbLogger(
             id=wandb_config['id'],
@@ -83,7 +86,7 @@ def train(config_file_path: str):
             artifact = run.use_artifact(f"{wandb_config['project']}/model-{wandb_config['id']}:latest", type="model")
             artifact_dir = artifact.download()
             checkpoint_path = os.path.join(artifact_dir, "model.ckpt")
-            model = Shoe40kClassificationModel.load_from_checkpoint(checkpoint_path)
+            #model = Shoe40kClassificationModel.load_from_checkpoint(checkpoint_path)
 
             trainer = pl.Trainer(
                 enable_checkpointing=True,
@@ -94,7 +97,7 @@ def train(config_file_path: str):
                 logger=wandb_logger
             )
 
-            trainer.fit(model, train_loader, val_loader)
+            trainer.fit(model, train_loader, val_loader, ckpt_path=checkpoint_path)
 
     else:
         # Initialize WandbLogger for new training run
