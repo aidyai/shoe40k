@@ -18,6 +18,58 @@ from torchmetrics.classification import (
     MulticlassF1Score,
 )
 
+
+
+class Shoe40kClassificationModel(pl.LightningModule):
+    def __init__(
+        self,
+        backbone: str = "resnet50",
+        train_bn: bool = False,
+        milestones: tuple = (2, 4),
+        batch_size: int = 32,
+        lr: float = 1e-3,
+        lr_scheduler_gamma: float = 1e-1,
+        num_workers: int = 6,
+        **kwargs,
+    
+    ) -> None:
+        """TransferLearningModel.
+        Args:
+            backbone: Name (as in ``torchvision.models``) of the feature extractor
+            train_bn: Whether the BatchNorm layers should be trainable
+            milestones: List of two epochs milestones
+            lr: Initial learning rate
+            lr_scheduler_gamma: Factor by which the learning rate is reduced at each milestone
+        """
+        super().__init__()
+        self.backbone = backbone
+        self.train_bn = train_bn
+        self.milestones = milestones
+        self.batch_size = batch_size
+        self.lr = lr
+        self.lr_scheduler_gamma = lr_scheduler_gamma
+        self.num_workers = num_workers
+
+
+    self.__build_model()
+    self.train_acc = Accuracy()
+            self.valid_acc = Accuracy()
+            self.save_hyperparameters()
+
+    def __build_model(self):
+            """Define model layers & loss."""
+    # 1. Load pre-trained network:
+            model_func = getattr(models, self.backbone)
+            backbone = model_func(pretrained=True)
+    _layers = list(backbone.children())[:-1]
+            self.feature_extractor = nn.Sequential(*_layers)
+    # 2. Classifier:
+            _fc_layers = [nn.Linear(2048, 256), nn.ReLU(), nn.Linear(256, 32), nn.Linear(32, 1)]
+            self.fc = nn.Sequential(*_fc_layers)
+    # 3. Loss:
+            self.loss_func = F.binary_cross_entropy_with_logits
+
+
 class Shoe40kClassificationModel(pl.LightningModule):
     def __init__(
         self,
