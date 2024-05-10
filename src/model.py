@@ -1,266 +1,145 @@
-from typing import List, Optional, Tuple
-import pandas as pd
-import pytorch_lightning as pl
+import os
+import yaml
+import gc
 import torch
-import torch.nn.functional as F
-from peft import LoraConfig, get_peft_model
-from torch.optim import SGD, Adam, AdamW
-from torch.optim.lr_scheduler import LambdaLR
+import wandb
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
+from src.dataset import Shoe40kDataModule
+from src.model import Shoe40kClassificationModel
+from src.image_logger import ImagePredictionLogger
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+
+
+import os
+import yaml
+import gc
+import torch
+import wandb
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
+from src.dataset import Shoe40kDataModule
+from src.model import Shoe40kClassificationModel
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+
+def load_config_from_yaml(config_file_path):
+    with open(config_file_path, 'r') as file:
+        config = yaml.safe_load(file)
+
+    # Resolve relative paths if necessary
+    config['csv_path'] = os.path.abspath(config['csv_path'])
+    config['dataset_path'] = os.path.abspath(config['dataset_path'])
+
+    return config
+
+def train(config_file_path: str):
+    # Load experiment configuration from YAML file
+    wandb_config = load_config_from_yaml(config_file_path)
+
+    # Instantiate LightningDataModule to determine dataset sizes
+    data_module = Shoe40kDataModule(wandb_config['csv_path'], wandb_config['dataset_path'], batch_size=wandb_config['batch_size'])
+
+    # DataLoaders for both the train and validation datasets
+    train_loader = data_module.train_dataloader()
+    val_loader = data_module.val_dataloader()
+
+    # Samples required by the custom ImagePredictionLogger callback to log image predictions.
+    val_samples = next(iter(val_loader))
+
+    # Update dataset related configuration parameters
+    wandb_config['train_batches'] = len(train_loader)
+    wandb_config['val_batches'] = len(val_loader)
+    wandb_config['dataset_train_size'] = len(train_loader.dataset)
+    wandb_config['dataset_val_size'] = len(val_loader.dataset)
 
 
 
-from transformers import AutoConfig, AutoModelForImageClassification
-from transformers.optimization import get_cosine_schedule_with_warmup
-from torchmetrics.classification import (
-    MulticlassAccuracy,
-    MulticlassPrecision,
-    MulticlassRecall,
-    MulticlassF1Score,
-)
+    # Callbacks
+    early_stop_callback = EarlyStopping(monitor="val_f1_score")
+    checkpoint_callback = ModelCheckpoint(
+        filename="{epoch}-{val_f1_score:.2f}",
+        monitor="val_f1_score",
+        mode="max",
+        verbose=True,
+        save_top_k=1,
+    )
 
+    # Check if resume_run_id is provided in wandb_config to resume training
+    resume_run_id = wandb_config.get('id')
+    if resume_run_id:
 
-
-class Shoe40kClassificationModel(pl.LightningModule):
-    def __init__(
-        self,
-        backbone: str = "resnet50",
-        train_bn: bool = False,
-        milestones: tuple = (2, 4),
-        batch_size: int = 32,
-        lr: float = 1e-3,
-        lr_scheduler_gamma: float = 1e-1,
-        num_workers: int = 6,
-        **kwargs,
-    
-    ) -> None:
-        """TransferLearningModel.
-        Args:
-            backbone: Name (as in ``torchvision.models``) of the feature extractor
-            train_bn: Whether the BatchNorm layers should be trainable
-            milestones: List of two epochs milestones
-            lr: Initial learning rate
-            lr_scheduler_gamma: Factor by which the learning rate is reduced at each milestone
-        """
-        super().__init__()
-        self.backbone = backbone
-        self.train_bn = train_bn
-        self.milestones = milestones
-        self.batch_size = batch_size
-        self.lr = lr
-        self.lr_scheduler_gamma = lr_scheduler_gamma
-        self.num_workers = num_workers
-
-
-    self.__build_model()
-    self.train_acc = Accuracy()
-            self.valid_acc = Accuracy()
-            self.save_hyperparameters()
-
-    def __build_model(self):
-            """Define model layers & loss."""
-    # 1. Load pre-trained network:
-            model_func = getattr(models, self.backbone)
-            backbone = model_func(pretrained=True)
-    _layers = list(backbone.children())[:-1]
-            self.feature_extractor = nn.Sequential(*_layers)
-    # 2. Classifier:
-            _fc_layers = [nn.Linear(2048, 256), nn.ReLU(), nn.Linear(256, 32), nn.Linear(32, 1)]
-            self.fc = nn.Sequential(*_fc_layers)
-    # 3. Loss:
-            self.loss_func = F.binary_cross_entropy_with_logits
-
-
-class Shoe40kClassificationModel(pl.LightningModule):
-    def __init__(
-        self,
-        model_checkpoint: str = "google/vit-base-patch16-384",
-        optimizer: str = "adam",
-        lr: float = 1e-2,
-        betas: Tuple[float, float] = (0.9, 0.999),
-        momentum: float = 0.9,
-        weight_decay: float = 0.0,
-        scheduler: str = "cosine",
-        warmup_steps: int = 0,
-        n_classes: int = 6,
-        label_smoothing: float = 0.0,
-        image_size: int = 384,
-        weights: Optional[str] = None,
-        lora_r: int = 16,
-        lora_alpha: int = 16,
-        lora_target_modules: List[str] = ["query", "value"],
-        lora_dropout: float = 0.0,
-        lora_bias: str = "none",
-    ):
-        """Classification Model
-
-        Args:
-            model_name: Name of model checkpoint. List found in src/model.py
-            optimizer: Name of optimizer. One of [adam, adamw, sgd]
-            lr: Learning rate
-            betas: Adam betas parameters
-            momentum: SGD momentum parameter
-            weight_decay: Optimizer weight decay
-            scheduler: Name of learning rate scheduler. One of [cosine, none]
-            warmup_steps: Number of warmup steps
-            n_classes: Number of target class
-            label_smoothing: Amount of label smoothing
-            image_size: Size of input images
-            weights: Path of checkpoint to load weights from (e.g when resuming after linear probing)
-            training_mode: Fine-tuning mode. One of ["full", "linear", "lora"]
-            lora_r: Dimension of LoRA update matrices
-            lora_alpha: LoRA scaling factor
-            lora_target_modules: Names of the modules to apply LoRA to
-            lora_dropout: Dropout probability for LoRA layers
-            lora_bias: Whether to train biases during LoRA. One of ['none', 'all' or 'lora_only']
-        """
-        super().__init__()
-        self.save_hyperparameters()
-        self.model_checkpoint = model_checkpoint
-        self.optimizer = optimizer
-        self.lr = lr
-        self.betas = betas
-        self.momentum = momentum
-        self.weight_decay = weight_decay
-        self.scheduler = scheduler
-        self.warmup_steps = warmup_steps
-        self.n_classes = n_classes
-        self.label_smoothing = label_smoothing
-        self.image_size = image_size
-        self.weights = weights
-        self.lora_r = lora_r
-        self.lora_alpha = lora_alpha
-        self.lora_target_modules = lora_target_modules
-        self.lora_dropout = lora_dropout
-        self.lora_bias = lora_bias
-
-        # Initialize with pretrained weights
-        self.net = AutoModelForImageClassification.from_pretrained(
-            model_checkpoint,
-            num_labels=self.n_classes,
-            ignore_mismatched_sizes=True,
-            image_size=self.image_size,
-        )
-
-
-        config = LoraConfig(
-            r=self.lora_r,
-            lora_alpha=self.lora_alpha,
-            target_modules=self.lora_target_modules,
-            lora_dropout=self.lora_dropout,
-            bias=self.lora_bias,
-            modules_to_save=["classifier"],
-        )
-        self.net = get_peft_model(self.net, config)
-
-
-
-
-        self.accuracy = MulticlassAccuracy(num_classes=self.n_classes)
-        self.recall = MulticlassRecall(num_classes=self.n_classes)
-        self.precision = MulticlassPrecision(num_classes=self.n_classes)
-        self.f1_score = MulticlassF1Score(num_classes=self.n_classes)
+        # Initialize the Lightning module
+        model = Shoe40kClassificationModel()
         
+        # Initialize WandbLogger for resuming training
+        wandb_logger = WandbLogger(
+            id=wandb_config['id'],
+            project=wandb_config['project'],
+            job_type='train',
+            config=wandb_config,
+            log_model="all",
+            resume="allow"
+        )
 
-    def forward(self, x):
-        return self.net(pixel_values=x).logits
+        # Download the checkpoint artifact and resume training
+        with wandb.init(project=wandb_config['project'], job_type='train', resume=True) as run:
+            artifact = run.use_artifact(f"{wandb_config['project']}/model-{wandb_config['id']}:latest", type="model")
+            artifact_dir = artifact.download()
+            checkpoint_path = os.path.join(artifact_dir, "model.ckpt")
+            #model = Shoe40kClassificationModel.load_from_checkpoint(checkpoint_path)
 
-
-    def _compute_metrics(self, batch, split):
-      x, y = batch
-      out = self.forward(x)
-    
-      loss = F.cross_entropy(out, y)
-      preds = torch.argmax(out, dim=1)
-    
-      metrics = {
-          f"{split}_Loss": loss,
-          f"{split}_Acc": self.accuracy(
-              preds=preds,
-              target=y,
-          ),
-    
-          f"{split}_Loss": loss,
-          f"{split}_f1_score":self.f1_score(
-              preds=preds,
-              target=y,
-          ),
-    
-          f"{split}_Loss": loss,
-          f"{split}_recall": self.recall(
-              preds=preds,
-              target=y,
-          ),
-    
-    
-          f"{split}_Loss":loss,
-          f"{split}_precision":self.precision(
-              preds=preds,
-              target=y,
-          ),
-        }
-    
-      return loss, metrics
-    
-    def training_step(self, batch, batch_idx):
-      loss, metrics = self._compute_metrics(batch, "train")
-      self.log_dict(metrics, on_epoch=True, on_step=False)
-    
-      return loss
-    
-    
-    def validation_step(self, batch, batch_idx):
-      _, metrics = self._compute_metrics(batch, "val")
-      self.log_dict(metrics, on_epoch=True, on_step=False)
-    
-      return metrics
-    
-
-    def configure_optimizers(self):
-        # Initialize optimizer
-        if self.optimizer == "adam":
-            optimizer = Adam(
-                self.net.parameters(),
-                lr=self.lr,
-                betas=self.betas,
-                weight_decay=self.weight_decay,
-            )
-        elif self.optimizer == "adamw":
-            optimizer = AdamW(
-                self.net.parameters(),
-                lr=self.lr,
-                betas=self.betas,
-                weight_decay=self.weight_decay,
-            )
-        elif self.optimizer == "sgd":
-            optimizer = SGD(
-                self.net.parameters(),
-                lr=self.lr,
-                momentum=self.momentum,
-                weight_decay=self.weight_decay,
-            )
-        else:
-            raise ValueError(
-                f"{self.optimizer} is not an available optimizer. Should be one of ['adam', 'adamw', 'sgd']"
+            trainer = pl.Trainer(
+                enable_checkpointing=True,
+                enable_model_summary=True,
+                callbacks=[early_stop_callback, checkpoint_callback],
+                accelerator=wandb_config['accelerator'],
+                logger=wandb_logger
             )
 
-        # Initialize learning rate scheduler
-        if self.scheduler == "cosine":
-            scheduler = get_cosine_schedule_with_warmup(
-                optimizer,
-                num_training_steps=int(self.trainer.estimated_stepping_batches),
-                num_warmup_steps=self.warmup_steps,
-            )
-        elif self.scheduler == "none":
-            scheduler = LambdaLR(optimizer, lambda _: 1)
-        else:
-            raise ValueError(
-                f"{self.scheduler} is not an available optimizer. Should be one of ['cosine', 'none']"
-            )
+            trainer.fit(model, train_loader, val_loader, ckpt_path=checkpoint_path)
 
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "interval": "step",
-            },
-        }
+    else:
+        # Initialize WandbLogger for new training run
+        wandb_logger = WandbLogger(
+            #id=wandb_config['id'],
+            project=wandb_config['project'],
+            job_type='train',
+            config=wandb_config,
+            log_model="all"
+        )
+
+        trainer = pl.Trainer(
+            enable_checkpointing=True,
+            enable_model_summary=True,
+            callbacks=[early_stop_callback,
+                                ImagePredictionLogger(val_samples),                                
+                                checkpoint_callback,
+                               ],
+            max_epochs=wandb_config['max_epochs'],
+            min_epochs=wandb_config['min_epochs'],
+            accelerator=wandb_config['accelerator'],
+            logger=wandb_logger
+        )
+
+        trainer.fit(model, train_loader, val_loader)
+
+    # Log the final model as a checkpoint artifact
+    artifact = wandb.Artifact('model_checkpoint', type='model')
+    model_path = trainer.checkpoint_callback.best_model_path
+    artifact.add_file(model_path, name='model.ckpt')
+    wandb_logger.experiment.log_artifact(artifact)
+
+    # Close wandb run
+    wandb.finish()
+
+if __name__ == '__main__':
+    # Clear CUDA cache and collect garbage to ensure memory availability
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    # Specify the path to your config.yaml file
+    config_file_path = '/content/shoe40k/config.yaml'
+
+    # Train the model using the specified config file
+    train(config_file_path)
+
