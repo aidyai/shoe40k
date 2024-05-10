@@ -4,3 +4,4 @@ torch
 torchvision
 pytorch_lightning
 peft
+timm
