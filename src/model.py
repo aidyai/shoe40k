@@ -1,145 +1,135 @@
-import os
-import yaml
-import gc
+from typing import Tuple
+
 import torch
-import wandb
+import torch.nn.functional as F
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger
-from src.dataset import Shoe40kDataModule
-from src.model import Shoe40kClassificationModel
-from src.image_logger import ImagePredictionLogger
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from torch.optim import SGD, Adam, AdamW
+from torch.optim.lr_scheduler import LambdaLR
+from transformers.optimization import get_cosine_schedule_with_warmup
+from torchmetrics.classification import (
+    MulticlassAccuracy,
+    MulticlassPrecision,
+    MulticlassRecall,
+    MulticlassF1Score,
+)
+import timm
 
 
-import os
-import yaml
-import gc
-import torch
-import wandb
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger
-from src.dataset import Shoe40kDataModule
-from src.model import Shoe40kClassificationModel
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+class Shoe40kClassificationModel(pl.LightningModule):
+    def __init__(
+        self,
+        num_classes: int = 3,
+        image_size: int = 384,
+        learning_rate: float = 1e-4,
+        model_name: str = "vit_base_patch16_384.augreg_in21k_ft_in1k",
+        optimizer: str = "adam",
+        lr: float = 1e-2,
+        pretrained: bool = False,
+        betas: Tuple[float, float] = (0.9, 0.999),
+        momentum: float = 0.9,
+        weight_decay: float = 0.0,
+        scheduler: str = "cosine",
+        warmup_steps: int = 0,
+        n_classes: int = 6,
+    ):
+        super().__init__()
+        self.num_classes = num_classes
+        self.image_size = image_size
+        self.learning_rate = learning_rate
+        self.model_name = model_name
+        self.optimizer = optimizer
+        self.lr = lr
+        self.pretrained = pretrained
+        self.betas = betas
+        self.momentum = momentum
+        self.weight_decay = weight_decay
+        self.scheduler = scheduler
+        self.warmup_steps = warmup_steps
+        self.n_classes = n_classes
 
-def load_config_from_yaml(config_file_path):
-    with open(config_file_path, 'r') as file:
-        config = yaml.safe_load(file)
-
-    # Resolve relative paths if necessary
-    config['csv_path'] = os.path.abspath(config['csv_path'])
-    config['dataset_path'] = os.path.abspath(config['dataset_path'])
-
-    return config
-
-def train(config_file_path: str):
-    # Load experiment configuration from YAML file
-    wandb_config = load_config_from_yaml(config_file_path)
-
-    # Instantiate LightningDataModule to determine dataset sizes
-    data_module = Shoe40kDataModule(wandb_config['csv_path'], wandb_config['dataset_path'], batch_size=wandb_config['batch_size'])
-
-    # DataLoaders for both the train and validation datasets
-    train_loader = data_module.train_dataloader()
-    val_loader = data_module.val_dataloader()
-
-    # Samples required by the custom ImagePredictionLogger callback to log image predictions.
-    val_samples = next(iter(val_loader))
-
-    # Update dataset related configuration parameters
-    wandb_config['train_batches'] = len(train_loader)
-    wandb_config['val_batches'] = len(val_loader)
-    wandb_config['dataset_train_size'] = len(train_loader.dataset)
-    wandb_config['dataset_val_size'] = len(val_loader.dataset)
-
-
-
-    # Callbacks
-    early_stop_callback = EarlyStopping(monitor="val_f1_score")
-    checkpoint_callback = ModelCheckpoint(
-        filename="{epoch}-{val_f1_score:.2f}",
-        monitor="val_f1_score",
-        mode="max",
-        verbose=True,
-        save_top_k=1,
-    )
-
-    # Check if resume_run_id is provided in wandb_config to resume training
-    resume_run_id = wandb_config.get('id')
-    if resume_run_id:
-
-        # Initialize the Lightning module
-        model = Shoe40kClassificationModel()
-        
-        # Initialize WandbLogger for resuming training
-        wandb_logger = WandbLogger(
-            id=wandb_config['id'],
-            project=wandb_config['project'],
-            job_type='train',
-            config=wandb_config,
-            log_model="all",
-            resume="allow"
+        # Create the image classification model using timm library
+        self.model = timm.create_model(
+            model_name=self.model_name,
+            pretrained=self.pretrained,
+            num_classes=self.n_classes,
         )
 
-        # Download the checkpoint artifact and resume training
-        with wandb.init(project=wandb_config['project'], job_type='train', resume=True) as run:
-            artifact = run.use_artifact(f"{wandb_config['project']}/model-{wandb_config['id']}:latest", type="model")
-            artifact_dir = artifact.download()
-            checkpoint_path = os.path.join(artifact_dir, "model.ckpt")
-            #model = Shoe40kClassificationModel.load_from_checkpoint(checkpoint_path)
+        # Initialize metrics for evaluation
+        self.accuracy = MulticlassAccuracy(num_classes=self.n_classes)
+        self.recall = MulticlassRecall(num_classes=self.n_classes)
+        self.precision = MulticlassPrecision(num_classes=self.n_classes)
+        self.f1_score = MulticlassF1Score(num_classes=self.n_classes)
 
-            trainer = pl.Trainer(
-                enable_checkpointing=True,
-                enable_model_summary=True,
-                callbacks=[early_stop_callback, checkpoint_callback],
-                accelerator=wandb_config['accelerator'],
-                logger=wandb_logger
+    def forward(self, x):
+        # Forward pass of the model
+        return self.model(x)
+
+    def _compute_metrics(self, batch, split):
+        # Compute metrics (loss, accuracy, f1_score, recall, precision) for a given batch and split
+        x, y = batch
+        out = self.forward(x)
+        loss = F.cross_entropy(out, y)
+        preds = torch.argmax(out, dim=1)
+
+        metrics = {
+            f"{split}_Loss": loss,
+            f"{split}_Acc": self.accuracy(preds=preds, target=y),
+            f"{split}_f1_score": self.f1_score(preds=preds, target=y),
+            f"{split}_recall": self.recall(preds=preds, target=y),
+            f"{split}_precision": self.precision(preds=preds, target=y),
+        }
+
+        return loss, metrics
+
+    def training_step(self, batch, batch_idx):
+        # Training step
+        loss, metrics = self._compute_metrics(batch, "train")
+        self.log_dict(metrics, on_epoch=True, on_step=False)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        # Validation step
+        _, metrics = self._compute_metrics(batch, "val")
+        self.log_dict(metrics, on_epoch=True, on_step=False)
+        return metrics
+
+    def configure_optimizers(self):
+        # Configure optimizer and learning rate scheduler
+        optimizer_params = {
+            "lr": self.lr,
+            "betas": self.betas,
+            "weight_decay": self.weight_decay,
+        }
+
+        if self.optimizer == "adam":
+            optimizer = Adam(self.parameters(), **optimizer_params)
+        elif self.optimizer == "adamw":
+            optimizer = AdamW(self.parameters(), **optimizer_params)
+        elif self.optimizer == "sgd":
+            optimizer = SGD(self.parameters(), **optimizer_params, momentum=self.momentum)
+        else:
+            raise ValueError(
+                f"{self.optimizer} is not an available optimizer. Should be one of ['adam', 'adamw', 'sgd']"
             )
 
-            trainer.fit(model, train_loader, val_loader, ckpt_path=checkpoint_path)
+        if self.scheduler == "cosine":
+            scheduler = get_cosine_schedule_with_warmup(
+                optimizer,
+                num_training_steps=self.trainer.max_steps,
+                num_warmup_steps=self.warmup_steps,
+            )
+        elif self.scheduler == "none":
+            scheduler = LambdaLR(optimizer, lambda _: 1)
+        else:
+            raise ValueError(
+                f"{self.scheduler} is not an available scheduler. Should be one of ['cosine', 'none']"
+            )
 
-    else:
-        # Initialize WandbLogger for new training run
-        wandb_logger = WandbLogger(
-            #id=wandb_config['id'],
-            project=wandb_config['project'],
-            job_type='train',
-            config=wandb_config,
-            log_model="all"
-        )
-
-        trainer = pl.Trainer(
-            enable_checkpointing=True,
-            enable_model_summary=True,
-            callbacks=[early_stop_callback,
-                                ImagePredictionLogger(val_samples),                                
-                                checkpoint_callback,
-                               ],
-            max_epochs=wandb_config['max_epochs'],
-            min_epochs=wandb_config['min_epochs'],
-            accelerator=wandb_config['accelerator'],
-            logger=wandb_logger
-        )
-
-        trainer.fit(model, train_loader, val_loader)
-
-    # Log the final model as a checkpoint artifact
-    artifact = wandb.Artifact('model_checkpoint', type='model')
-    model_path = trainer.checkpoint_callback.best_model_path
-    artifact.add_file(model_path, name='model.ckpt')
-    wandb_logger.experiment.log_artifact(artifact)
-
-    # Close wandb run
-    wandb.finish()
-
-if __name__ == '__main__':
-    # Clear CUDA cache and collect garbage to ensure memory availability
-    torch.cuda.empty_cache()
-    gc.collect()
-
-    # Specify the path to your config.yaml file
-    config_file_path = '/content/shoe40k/config.yaml'
-
-    # Train the model using the specified config file
-    train(config_file_path)
-
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "interval": "step",
+                "frequency": 1,
+            },
+        }
