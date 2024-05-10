@@ -92,7 +92,6 @@ def train(config_file_path: str):
                 enable_checkpointing=True,
                 enable_model_summary=True,
                 callbacks=[early_stop_callback, checkpoint_callback],
-                resume_from_checkpoint=checkpoint_path,
                 accelerator=wandb_config['accelerator'],
                 logger=wandb_logger
             )
