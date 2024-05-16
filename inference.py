@@ -1,7 +1,5 @@
 import requests
 from src.model import Shoe40kClassificationModel
-#from data import DataModule
-#import sys
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
