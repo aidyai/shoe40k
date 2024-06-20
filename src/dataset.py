@@ -1,18 +1,11 @@
 import os
 import torch
-
 from PIL import Image
 import pandas as pd
-from torch.nn.modules import transformer
 import torchvision.transforms as T
-
-from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from pytorch_lightning import LightningDataModule
-
-
-
 
 class Shoe40kTransforms(T.Compose):
     def __init__(self, phase):
@@ -36,14 +29,12 @@ class Shoe40kTransforms(T.Compose):
                 )
             ],
         }
-        
         super().__init__(self.transforms[self.phase])
 
 
 
-
 class Shoe40kDataset(Dataset):
-    def __init__(self, df, path, phase, transform=None):
+    def __init__(self, df, path, phase):
         self.df = df
         self.path = path
         self.file_names = df['file_name'].values
@@ -77,15 +68,17 @@ class Shoe40kDataset(Dataset):
         images = torch.stack(images, dim=0)
         labels = torch.as_tensor(labels)
         return images, labels
-    
+
+
+
 
 class Shoe40kDataModule(LightningDataModule):
-    
-    def __init__(self, csv_path, dataset_path, batch_size):
+    def __init__(self, csv_path, dataset_path, batch_size, num_workers=4):
         super().__init__()
         self.csv_path = csv_path
         self.dataset_path = dataset_path
         self.batch_size = batch_size
+        self.num_workers = num_workers
         
         # Load your CSV file containing image filenames and labels
         df = pd.read_csv(self.csv_path)
@@ -101,10 +94,9 @@ class Shoe40kDataModule(LightningDataModule):
     def train_dataloader(self):
         return DataLoader(dataset=self.train_dataset,
                           batch_size=self.batch_size, 
-                          num_workers=12, shuffle=True)
+                          num_workers=self.num_workers, shuffle=True)
     
     def val_dataloader(self):
         return DataLoader(dataset=self.val_dataset,
                           batch_size=self.batch_size, 
-                          num_workers=12, shuffle=False)
-
+                          num_workers=self.num_workers, shuffle=False)
